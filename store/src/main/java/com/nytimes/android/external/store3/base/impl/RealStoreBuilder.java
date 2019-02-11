@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 
 import io.reactivex.Maybe;
 import io.reactivex.Single;
+import io.reactivex.annotations.NonNull;
 
 
 /**
@@ -27,6 +28,7 @@ public class RealStoreBuilder<Raw, Parsed, Key> {
     private final List<KeyParser> parsers = new ArrayList<>();
     private Persister<Raw, Key> persister;
     private Fetcher<Raw, Key> fetcher;
+    private KeyParser<Key, Parsed, Raw> deparser;
     private MemoryPolicy memoryPolicy;
 
     @SuppressWarnings("PMD.UnusedPrivateField") //remove when it is implemented...
@@ -93,6 +95,12 @@ public class RealStoreBuilder<Raw, Parsed, Key> {
     }
 
     @Nonnull
+    public RealStoreBuilder<Raw, Parsed, Key> deparser(final @Nonnull Parser<Parsed, Raw> deparser) {
+        this.deparser = new NoKeyParser<>(deparser);
+        return this;
+    }
+
+    @Nonnull
     public RealStoreBuilder<Raw, Parsed, Key> memoryPolicy(MemoryPolicy memoryPolicy) {
         this.memoryPolicy = memoryPolicy;
         return this;
@@ -129,5 +137,23 @@ public class RealStoreBuilder<Raw, Parsed, Key> {
             = new RealInternalStore<>(fetcher, persister, multiParser, memoryPolicy, stalePolicy);
 
         return new RealStore<>(realInternalStore);
+    }
+
+    @Nonnull
+    public UpdatableStore<Parsed, Key> openUpdatable() {
+        if (persister == null) {
+            persister = NoopPersister.create(memoryPolicy);
+        }
+
+        if (parsers.isEmpty()) {
+            parser(new NoopParserFunc<Raw, Parsed>());
+        }
+
+        KeyParser<Key, Raw, Parsed> multiParser = new MultiParser<>(parsers);
+
+        RealInternalUpdatableStore<Raw, Parsed, Key> realInternalStore
+                = new RealInternalUpdatableStore<>(fetcher, persister, multiParser, deparser, memoryPolicy, stalePolicy);
+
+        return new RealUpdatableStore<>(realInternalStore);
     }
 }
